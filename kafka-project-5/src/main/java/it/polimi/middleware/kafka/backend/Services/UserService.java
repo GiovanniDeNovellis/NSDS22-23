@@ -30,11 +30,13 @@ public class UserService {
     private static final String offsetResetStrategy = "earliest";
     private static final String defaultGroupId = "groupUser";
 
+    //Recover the list of users when the service starts
     public UserService() {
         System.out.println("Constructor");
         recoverUsersState();
     }
 
+    //Adding a new users to the system and publishing a message for future recoveries
     public User registerUser(String email, String password, String type, String address){
         for(User u: userList){
             if(u.getEmail().equals(email)) {
@@ -51,6 +53,7 @@ public class UserService {
         return user;
     }
 
+    //Handle loginr equests by an user
     public User Login(String email, String password){
         for(User u: userList){
             if(u.getEmail().equals(email) && u.getPassword().equals(password)){
@@ -60,6 +63,7 @@ public class UserService {
         return null;
     }
 
+    //Publish a new user message
     private void notifyRegistration(User user){
         //Library to serialize the object
         Gson gson = new Gson();
@@ -76,6 +80,7 @@ public class UserService {
         producer.send(record);
     }
 
+    //Recover the list of users when the service starts
     private void recoverUsersState(){
         Gson gson = new Gson();
         System.out.println("Users recovery started");

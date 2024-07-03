@@ -17,10 +17,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class ShippingService implements Runnable{
-
-    //Probably useless
-    //private static List<User> customersList = new ArrayList<>();
-
     private final String orderTopic = "orderCreation";
 
     private static List<Order> ongoingOrders = new ArrayList<>();
@@ -33,7 +29,6 @@ public class ShippingService implements Runnable{
     private static final String defaultGroupId = "groupShip";
 
     public ShippingService() {
-        //recoverCustomersState();
         recoverOrdersState();
     }
 
@@ -42,16 +37,7 @@ public class ShippingService implements Runnable{
         return ongoingOrders;
     }
 
-    /*
-    public List<String> getUsers(){
-        List<String> res = new ArrayList<>();
-        for(User u: customersList)
-            res.add(u.getEmail());
-        return res;
-    }
-     */
-
-    //We assume that there is only one ongoing order for each address at the same time
+    //Update the status of the order when the delivery employee reports the delivery.
     public String updateOrder(String status, int orderId){
         Order orderToUpdate = findOrder(orderId);
         if(orderToUpdate==null)
@@ -65,6 +51,7 @@ public class ShippingService implements Runnable{
         return "Successful Update";
     }
 
+    //Retrieve the needed order
     private Order findOrder(int id){
         for(Order order: ongoingOrders){
             if(order.getId()==id)
@@ -73,6 +60,7 @@ public class ShippingService implements Runnable{
         return null;
     }
 
+    //Publish a message for the orders service when an order's status is updated.
     private void notifyOrderUpdate(Order updatedOrder){
         Gson gson = new Gson();
         final Properties props = new Properties();
@@ -87,6 +75,7 @@ public class ShippingService implements Runnable{
         producer.send(record);
     }
 
+    //Save a new order when a message is received
     private static void handleNewOrder(String message){
         Gson gson = new Gson();
         Order order = gson.fromJson(message, Order.class);
@@ -95,15 +84,7 @@ public class ShippingService implements Runnable{
         ongoingOrders.add(order);
     }
 
-    /*
-    private static void handleNewUser(String message){
-        Gson gson = new Gson();
-        User user = gson.fromJson(message, User.class);
-        if(user.getType().equals("Customer"))
-            customersList.add(user);
-    }
-    */
-
+    //Recovering the pending orders in case the service crashes
     private void handleOrderRecovery(Order recoveredOrder){
         Order oldVersion=null;
         for(Order order: ongoingOrders){
@@ -121,6 +102,7 @@ public class ShippingService implements Runnable{
         }
     }
 
+    //Only pending orders are needed by the shipping service
     private void removeDeliveredOrders(){
         for(int i=0; i<ongoingOrders.size(); i++){
             Order ord= ongoingOrders.get(i);
@@ -129,6 +111,7 @@ public class ShippingService implements Runnable{
         }
     }
 
+    //Recovering the state of orders after a crash
     private void recoverOrdersState(){
         Gson gson = new Gson();
         System.out.println("Orders recovery started");
@@ -159,43 +142,11 @@ public class ShippingService implements Runnable{
         }
         consumer.unsubscribe();
     }
-    /*
-    private void recoverCustomersState(){
-        Gson gson = new Gson();
-        System.out.println("Customers recovery started");
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, serverAddr);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "shipCustRecovery");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, String.valueOf(autoCommit));
-        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(autoCommitIntervalMs));
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
 
-        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
-        consumer.subscribe(Collections.singleton("userCreation"));
-        final ConsumerRecords<String, String> records = consumer.poll(Duration.of(5, ChronoUnit.SECONDS));
-        consumer.seekToBeginning(records.partitions());
-        if(records.isEmpty())
-            System.out.println("No users found");
-        for (final ConsumerRecord<String, String> record : records) {
-            System.out.println(record.topic());
-            System.out.println(record.value());
-            User user = gson.fromJson(record.value(), User.class);
-            if(user.getType().equals("Customer"))
-                customersList.add(user);
-        }
-        System.out.println("Customers recovery ended");
-        for(User u: customersList){
-            System.out.println(u);
-        }
-        consumer.unsubscribe();
-    }
-    */
+    //Running consumer that listens for a new order placed by the Orders Service
     @Override
     public void run() {
         topicsListened.add("orderCreation");
-        //topicsListened.add("userCreation");
         System.out.println("Shipping consumer started");
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, serverAddr);
@@ -215,8 +166,6 @@ public class ShippingService implements Runnable{
                 System.out.println(record.value());
                 if(record.topic().equals("orderCreation"))
                     handleNewOrder(record.value());
-                //else
-                //    handleNewUser(record.value());
             }
         }
     }

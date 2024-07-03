@@ -31,7 +31,9 @@ public class OrdersService implements Runnable{
     private int num_orders;
 
     public OrdersService() {
+        //Recover previous orders if the service crashed
         recoverOrdersState();
+        //Recover state of available items if the service crashed
         recoverItemsState();
     }
 
@@ -40,6 +42,7 @@ public class OrdersService implements Runnable{
         return this.itemAvailability;
     }
 
+    //Add a new item to the service and publish message for future crashes.
     public void addItem(String type, int quantity){
         if(!itemAvailability.containsKey(type))
             itemAvailability.put(type,quantity);
@@ -50,7 +53,7 @@ public class OrdersService implements Runnable{
         System.out.println("items updated");
     }
 
-    //Called by the front end
+    //Called by the front end, place a new order and update availabilities
     public String placeOrder(Map<String, Integer> orderedItems, String email, String address){
         if(!checkAvailability(orderedItems)){
             return "Unavailable Items";
@@ -63,6 +66,7 @@ public class OrdersService implements Runnable{
         return "Successful order";
     }
 
+    //Retrieve all the orders placed by a certain user
     public List<Order> checkMyOrders(String email){
         System.out.println("Input email: " +  email);
         List<Order> MyOrders = new ArrayList<>();
@@ -75,6 +79,7 @@ public class OrdersService implements Runnable{
         return MyOrders;
     }
 
+    //Check if all the items requested by an order are available
     private boolean checkAvailability(Map<String, Integer> orderedItems){
         for(String key: orderedItems.keySet()){
             if(!itemAvailability.containsKey(key) || orderedItems.get(key)> itemAvailability.get(key))
@@ -83,6 +88,7 @@ public class OrdersService implements Runnable{
         return true;
     }
 
+    //Update the new availabilities after placing an order
     private void updateItemList(Map<String, Integer> orderedItems){
         for(String key: orderedItems.keySet()){
             int newQuantity = itemAvailability.get(key) - orderedItems.get(key);
@@ -91,6 +97,7 @@ public class OrdersService implements Runnable{
         publishNewItemState(itemAvailability);
     }
 
+    //Publish a new order message for future retrieval and shipping service
     private void notifyNewOrder(Order order){
         Gson gson = new Gson();
         final Properties props = new Properties();
@@ -105,6 +112,7 @@ public class OrdersService implements Runnable{
         producer.send(record);
     }
 
+    //Publish new item state for future retrieval
     private void publishNewItemState(Map<String, Integer> itemAvailability){
         Gson gson = new Gson();
         final Properties props = new Properties();
@@ -122,6 +130,7 @@ public class OrdersService implements Runnable{
         producer.send(record);
     }
 
+    //Update an order when receiving a new order message
     private void handleOrderUpdate(Order updatedOrder){
         Order oldOrderVersion = null;
         for(Order order: orderList) {
@@ -132,6 +141,7 @@ public class OrdersService implements Runnable{
         orderList.add(updatedOrder);
     }
 
+    //Used when recovering orders after a crash, checks if it is a more recent version
     private void handleOrderRecovery(Order recoveredOrder){
         Order oldVersion=null;
         for(Order order: orderList){
@@ -150,6 +160,7 @@ public class OrdersService implements Runnable{
         }
     }
 
+    //Recovering all the orders if the service crashed
     private void recoverOrdersState(){
         Gson gson = new Gson();
         System.out.println("Orders recovery started");
@@ -182,6 +193,7 @@ public class OrdersService implements Runnable{
         consumer.unsubscribe();
     }
 
+    //Recovering the state of items if the service crashed
     private void recoverItemsState(){
         Gson gson = new Gson();
         System.out.println("Items state recovery started");
